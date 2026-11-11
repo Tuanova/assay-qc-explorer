@@ -1,7 +1,9 @@
 # Assay QC Explorer
 
-> **Status: work in progress.** The app, the rules and the evaluation are in
-> place. A public demo link and a screenshot will be added.
+**Live demo:** https://plate-qc-explorer-gursen.streamlit.app/
+(the app sleeps when unused; opening the link wakes it up in about a minute)
+
+![Plate view of the app: plate map with flagged wells and dose-response curves](docs/screenshot.png)
 
 A small tool for exploring and quality-checking data from a cell-viability
 assay run on 96-well plates. It is meant to help a scientist review a plate
@@ -220,6 +222,21 @@ results/                output of scripts/run_evaluation.py
 
 ## Use of AI
 
-This project is being developed with the help of an AI assistant (Claude).
-A precise account of which parts were AI-generated and which were written or
-changed by the author will be added here before the project is presented.
+The code in this repository was written with an AI assistant (Claude,
+Anthropic), working step by step from a brief and from feedback.
+
+The author's part:
+
+- the idea and the scope of the project, based on her laboratory experience
+  with CellTiter-Glo viability assays;
+- the assay model: blank wells for background correction, DMSO vehicle wells
+  as the 100 % reference, and staurosporine as a reference compound with a
+  dose-response curve instead of a 0 % control (the first AI draft used a
+  kill control as 0 %, which she corrected);
+- the notes on equal final DMSO concentration and on ATP as an indicator of
+  viability rather than a cell count;
+- running the code and the tests locally, comparing the findings with the
+  ground-truth file, and trying the effect of different thresholds.
+
+The AI's part: the Python code, the tests, the Streamlit app, the evaluation
+script and the first draft of this README.
