@@ -17,14 +17,21 @@ generator in `assay_qc/generator.py` and do not come from any real experiment.
 
 ## Simulated experiment
 
-A luminescence viability assay (signal proportional to the number of living
-cells) on a 96-well plate:
+An ATP-based luminescence viability assay (CellTiter-Glo type: the signal is
+proportional to the amount of ATP, and so to the number of living cells) on a
+96-well plate:
 
 | Columns | Content |
 |---|---|
-| 1 and 12 | 8 vehicle controls and 8 kill controls, alternating on both sides |
-| 2-10 | 3 compounds x 3 replicates; rows A-H are an 8-point, 3-fold dilution from 100 uM |
-| 11 | 8 blanks |
+| 1 and 12 | 16 vehicle controls (cells without compound) |
+| 2-10 | 3 compounds x 3 replicates; rows A-H are an 8-point, 3-fold dilution |
+| 11 | 8 blanks (medium and reagent, no cells) |
+
+The three compounds are staurosporine (`STS`, a reference cytotoxic compound,
+10 uM top concentration), `Compound_A` (active) and `Compound_B` (inactive),
+both starting at 100 uM. STS is treated like any other compound: it shows a
+dose-response curve and does not define 0 % viability, because its effect
+depends on concentration and exposure time.
 
 ## Data schema
 
@@ -34,7 +41,7 @@ One row per well.
 |---|---|
 | `plate_id` | Identifier of one physical plate |
 | `well` | Well address, `A1` to `H12` |
-| `sample_type` | `vehicle_control`, `kill_control`, `blank` or `compound` |
+| `sample_type` | `vehicle_control`, `blank` or `compound` |
 | `compound` | Compound name; empty for controls and blanks |
 | `concentration_uM` | Compound concentration in micromolar; empty for controls and blanks |
 | `replicate` | Replicate number within its group, starting at 1 |
@@ -42,27 +49,29 @@ One row per well.
 
 Sample types:
 
-- `vehicle_control`: cells with solvent only. Defines 100 % viability.
-- `kill_control`: cells with a cytotoxic reference. Defines 0 % viability.
-- `blank`: medium and reagent without cells. Shows the background; not used in normalisation.
-- `compound`: cells with a test compound.
+- `vehicle_control`: cells without compound (solvent only). Defines 100 % viability.
+- `blank`: medium and reagent without cells. Defines the background signal.
+- `compound`: cells with a compound (test compound or the STS reference).
 
 ## Calculations
 
-Per plate, using that plate's own controls:
+Per plate, using that plate's own vehicle and blank wells:
 
 ```
-viability % = 100 * (signal - mean_kill) / (mean_vehicle - mean_kill)
-Z'          = 1 - 3 * (SD_vehicle + SD_kill) / |mean_vehicle - mean_kill|
+net signal  = signal - mean_blank                              (background correction)
+viability % = 100 * net signal / (mean_vehicle - mean_blank)   (normalisation)
+Z'          = 1 - 3 * (SD_vehicle + SD_blank) / |mean_vehicle - mean_blank|
 ```
 
 - Viability is not clipped to 0-100 %. Values outside that range stay visible.
-- A plate with a missing control, or with controls too close together, is not
-  normalised; the code raises a clear error instead.
+- A plate with missing vehicle or blank wells, or with a vehicle signal too
+  close to the background, is not normalised; the code raises a clear error.
 - Replicate CV is computed on the raw signal, because percent viability can be
   close to zero and a CV with a near-zero mean is meaningless.
-- Z' is estimated from 8 wells per control, so it is uncertain. Any threshold
-  used with it in this project is a configurable demo heuristic.
+- Z' is computed from vehicle and blank wells, so it describes the
+  signal-to-background window of the plate, not the response to a cytotoxic
+  control. It is estimated from a small number of wells, so it is uncertain.
+  Any threshold used with it in this project is a configurable demo heuristic.
 
 ## Synthetic data and ground truth
 
@@ -73,8 +82,8 @@ in brightness and noise, and can inject known problems:
 |---|---|---|
 | `missing_signal` | well | removes one measurement |
 | `replicate_perturbation` | replicate group | multiplies one well of the group by 0.45-0.80 or 1.25-1.90 |
-| `control_outlier` | control well | disturbs one vehicle or kill control well |
-| `poor_control_separation` | plate | very noisy controls, or a kill control that is not fully killed |
+| `control_outlier` | vehicle or blank well | lowers one vehicle well, or raises one blank well |
+| `poor_control_separation` | plate | very noisy vehicle wells, or a high and variable background |
 
 The injected problems are saved in a separate truth file. The analysis code
 never reads it.

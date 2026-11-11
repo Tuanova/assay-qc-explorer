@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from assay_qc.schema import BLANK, COLUMNS, COMPOUND, KILL, VEHICLE, build_layout
+from assay_qc.schema import BLANK, COLUMNS, COMPOUND, VEHICLE, build_layout
 
 TRUTH_COLUMNS = [
     "plate_id", "level", "issue_type", "well", "compound", "concentration_uM", "detail",
@@ -30,16 +30,16 @@ class CompoundProfile:
 
 
 PROFILES = {
-    "Compound_A": CompoundProfile(ic50_uM=1.5, hill=1.2, bottom=0.0),      # potent
-    "Compound_B": CompoundProfile(ic50_uM=25.0, hill=1.0, bottom=0.15),    # weak, partial
-    "Compound_C": CompoundProfile(ic50_uM=10_000.0, hill=1.0, bottom=0.0), # inactive
+    "STS": CompoundProfile(ic50_uM=0.05, hill=1.0, bottom=0.03),           # reference, potent
+    "Compound_A": CompoundProfile(ic50_uM=5.0, hill=1.2, bottom=0.0),      # active
+    "Compound_B": CompoundProfile(ic50_uM=10_000.0, hill=1.0, bottom=0.0), # inactive
 }
 
-BACKGROUND_NOISE_RLU = 150  # additive reader noise, same for every well
+BACKGROUND_NOISE_RLU = 50  # additive reader noise, same for every well
 
 
 def viability_fraction(concentration_uM, profile: CompoundProfile):
-    """Expected viability (1 = like vehicle, 0 = like kill control)."""
+    """Expected viability (1 = like vehicle control, 0 = no living cells)."""
     effect = 1 / (1 + (concentration_uM / profile.ic50_uM) ** profile.hill)
     return profile.bottom + (1 - profile.bottom) * effect
 
@@ -47,40 +47,37 @@ def viability_fraction(concentration_uM, profile: CompoundProfile):
 def generate_plate(plate_id: str, rng: np.random.Generator, poor_separation: str | None = None) -> pd.DataFrame:
     """Simulate one plate without well-level problems.
 
-    poor_separation: None, "noisy_controls" (controls scatter a lot) or
-    "weak_kill" (kill control not fully killed, so the window is narrow).
+    poor_separation: None, "noisy_vehicle" (vehicle wells scatter a lot) or
+    "high_background" (blank signal is high and variable, e.g. contaminated
+    medium), so the window between cells and background is poor.
     """
     plate = build_layout()
 
-    # Plate-to-plate differences: overall brightness, kill level, noise level.
+    # Plate-to-plate differences: overall brightness, background, noise level.
     vehicle_level = 100_000 * rng.lognormal(mean=0, sigma=0.10)
-    kill_fraction = rng.uniform(0.02, 0.05)
     blank_level = rng.uniform(300, 600)
     noise_cv = rng.uniform(0.04, 0.09)
-    control_cv = noise_cv
+    vehicle_cv, blank_cv = noise_cv, 0.05
 
-    if poor_separation == "noisy_controls":
-        control_cv = rng.uniform(0.22, 0.32)
-    elif poor_separation == "weak_kill":
-        kill_fraction = rng.uniform(0.65, 0.80)
+    if poor_separation == "noisy_vehicle":
+        vehicle_cv = rng.uniform(0.22, 0.32)
+    elif poor_separation == "high_background":
+        blank_level = vehicle_level * rng.uniform(0.40, 0.60)
+        blank_cv = 0.15
     elif poor_separation is not None:
         raise ValueError(f"Unknown poor_separation mode: {poor_separation}")
-
-    kill_level = vehicle_level * kill_fraction
 
     # Expected (noise-free) signal of every well.
     expected = np.zeros(len(plate))
     cv = np.full(len(plate), noise_cv)
     for i, well in plate.iterrows():
         if well["sample_type"] == VEHICLE:
-            expected[i], cv[i] = vehicle_level, control_cv
-        elif well["sample_type"] == KILL:
-            expected[i], cv[i] = kill_level, control_cv
+            expected[i], cv[i] = vehicle_level, vehicle_cv
         elif well["sample_type"] == BLANK:
-            expected[i] = blank_level
+            expected[i], cv[i] = blank_level, blank_cv
         else:
             fraction = viability_fraction(well["concentration_uM"], PROFILES[well["compound"]])
-            expected[i] = kill_level + fraction * (vehicle_level - kill_level)
+            expected[i] = blank_level + fraction * (vehicle_level - blank_level)
 
     # Noise: a part proportional to the signal plus a constant background part.
     proportional = expected * cv * rng.standard_normal(len(plate))
@@ -136,9 +133,10 @@ def inject_well_issues(
             truth.append({**row, "level": "well", "issue_type": "missing_signal", "detail": ""})
 
     if control_outlier:
-        control = str(rng.choice([VEHICLE, KILL]))
+        control = str(rng.choice([VEHICLE, BLANK]))
         index = rng.choice(plate.index[plate["sample_type"] == control])
-        # A vehicle well that lost signal, or a kill well that was not killed.
+        # A vehicle well that lost signal, or a blank well with extra signal
+        # (for example a splash from a neighbouring well).
         factor = float(rng.uniform(0.40, 0.70) if control == VEHICLE else rng.uniform(3.0, 6.0))
         plate.at[index, "signal"] = round(plate.at[index, "signal"] * factor)
         truth.append({"plate_id": plate_id, "level": "well", "issue_type": "control_outlier",
@@ -169,7 +167,7 @@ def generate_dataset(
 
         poor_separation = None
         if not is_clean and rng.random() < poor_separation_prob:
-            poor_separation = str(rng.choice(["noisy_controls", "weak_kill"]))
+            poor_separation = str(rng.choice(["noisy_vehicle", "high_background"]))
 
         plate = generate_plate(plate_id, rng, poor_separation)
 

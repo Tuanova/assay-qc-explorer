@@ -1,12 +1,14 @@
 plate_id,level,issue_type,well,compound,concentration_uM,detail
-P002,group,replicate_perturbation,H4,Compound_A,0.0457,signal x 0.66
-P002,well,control_outlier,B1,,,kill_control signal x 3.21
-P003,plate,poor_control_separation,,,,weak_kill
-P003,group,replicate_perturbation,B4,Compound_A,33.3333,signal x 0.75
-P003,group,replicate_perturbation,D7,Compound_B,3.7037,signal x 1.30
-P006,group,replicate_perturbation,B3,Compound_A,33.3333,signal x 0.47
-P006,group,replicate_perturbation,D9,Compound_C,3.7037,signal x 0.73
-P006,group,replicate_perturbation,B5,Compound_B,33.3333,signal x 0.65
-P006,well,missing_signal,E2,Compound_A,1.2346,
-P006,well,missing_signal,H6,Compound_B,0.0457,
-P006,well,control_outlier,D1,,,kill_control signal x 5.39
+P003,group,replicate_perturbation,A4,STS,10.0,signal x 0.68
+P003,well,missing_signal,E6,Compound_A,1.2346,
+P003,well,control_outlier,C11,,,blank signal x 4.71
+P004,plate,poor_control_separation,,,,high_background
+P004,group,replicate_perturbation,A2,STS,10.0,signal x 0.73
+P004,group,replicate_perturbation,C4,STS,1.1111,signal x 0.61
+P004,well,missing_signal,B4,STS,3.3333,
+P004,well,missing_signal,D6,Compound_A,3.7037,
+P005,group,replicate_perturbation,A2,STS,10.0,signal x 1.84
+P005,well,control_outlier,E1,,,vehicle_control signal x 0.67
+P006,group,replicate_perturbation,E7,Compound_A,1.2346,signal x 0.65
+P006,group,replicate_perturbation,G7,Compound_A,0.1372,signal x 0.59
+P006,well,control_outlier,G11,,,blank signal x 4.24

@@ -19,21 +19,29 @@ COLUMNS = [
 
 # --- Sample types ----------------------------------------------------------
 # We avoid "positive/negative control" because their meaning depends on the assay.
-VEHICLE = "vehicle_control"  # cells + solvent only -> defines 100 % viability
-KILL = "kill_control"        # cells + cytotoxic reference -> defines 0 % viability
-BLANK = "blank"              # medium + reagent, no cells -> background, QC display only
-COMPOUND = "compound"        # cells + test compound
-SAMPLE_TYPES = (VEHICLE, KILL, BLANK, COMPOUND)
+VEHICLE = "vehicle_control"  # cells without compound (solvent only) -> defines 100 % viability
+BLANK = "blank"              # medium + reagent, no cells -> background signal
+COMPOUND = "compound"        # cells + compound (test compound or reference)
+SAMPLE_TYPES = (VEHICLE, BLANK, COMPOUND)
 
 # --- Plate geometry --------------------------------------------------------
 ROWS = "ABCDEFGH"
 N_COLS = 12
 
 # --- Demo experiment -------------------------------------------------------
-COMPOUNDS = ("Compound_A", "Compound_B", "Compound_C")
+# STS = staurosporine, a well-known cytotoxic compound used here as a reference.
+# It is tested like any other compound; it does NOT define 0 % viability.
+COMPOUNDS = ("STS", "Compound_A", "Compound_B")
 N_REPLICATES = 3
-# 8-point, 3-fold dilution series starting at 100 uM (row A = highest).
-CONCENTRATIONS_UM = tuple(round(100 / 3**i, 4) for i in range(len(ROWS)))
+# Highest concentration of each compound (row A). Every following row is a
+# 3-fold dilution, giving an 8-point series. STS is potent, so it starts lower.
+TOP_CONCENTRATION_UM = {"STS": 10.0, "Compound_A": 100.0, "Compound_B": 100.0}
+DILUTION_FACTOR = 3
+
+
+def concentration_uM(compound: str, row_index: int) -> float:
+    """Concentration of `compound` in a given row (0 = row A = highest)."""
+    return round(TOP_CONCENTRATION_UM[compound] / DILUTION_FACTOR**row_index, 4)
 
 
 def well_name(row: str, col: int) -> str:
@@ -45,25 +53,21 @@ def build_layout() -> pd.DataFrame:
     """Return the 96 wells of the demo plate, without plate_id and signal.
 
     Layout:
-      column 1 and 12  vehicle and kill controls, alternating, so that both
-                       control types sit on both sides of the plate (8 + 8)
+      column 1 and 12  vehicle controls (16), on both sides of the plate
       columns 2-10     3 compounds x 3 replicate columns, rows = concentrations
       column 11        blanks (8)
     """
     wells = []
-    control_count = {VEHICLE: 0, KILL: 0}
+    vehicle_count = 0
 
     for row_index, row in enumerate(ROWS):
         for col in range(1, N_COLS + 1):
             compound, concentration = None, None
 
             if col in (1, 12):
-                # Column 1 starts with vehicle, column 12 starts with kill.
-                even_row = row_index % 2 == 0
-                starts_with_vehicle = col == 1
-                sample_type = VEHICLE if even_row == starts_with_vehicle else KILL
-                control_count[sample_type] += 1
-                replicate = control_count[sample_type]
+                sample_type = VEHICLE
+                vehicle_count += 1
+                replicate = vehicle_count
             elif col == 11:
                 sample_type = BLANK
                 replicate = row_index + 1
@@ -71,7 +75,7 @@ def build_layout() -> pd.DataFrame:
                 sample_type = COMPOUND
                 compound = COMPOUNDS[(col - 2) // N_REPLICATES]
                 replicate = (col - 2) % N_REPLICATES + 1
-                concentration = CONCENTRATIONS_UM[row_index]
+                concentration = concentration_uM(compound, row_index)
 
             wells.append(
                 {

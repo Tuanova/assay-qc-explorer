@@ -1,7 +1,7 @@
 import pandas as pd
 
 from assay_qc.generator import generate_dataset
-from assay_qc.schema import BLANK, COLUMNS, COMPOUND, KILL, VEHICLE
+from assay_qc.schema import BLANK, COLUMNS, COMPOUND, VEHICLE
 
 
 def test_every_plate_has_96_unique_wells_and_expected_layout():
@@ -11,8 +11,7 @@ def test_every_plate_has_96_unique_wells_and_expected_layout():
     for _, plate in data.groupby("plate_id"):
         assert plate["well"].nunique() == 96
         counts = plate["sample_type"].value_counts()
-        assert counts[VEHICLE] == 8
-        assert counts[KILL] == 8
+        assert counts[VEHICLE] == 16
         assert counts[BLANK] == 8
         assert counts[COMPOUND] == 72
 
