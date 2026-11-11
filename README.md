@@ -1,8 +1,8 @@
 # Assay QC Explorer
 
-> **Status: work in progress.** The data model, the synthetic data generator and
-> the core calculations are in place. The QC rules, the Streamlit app and the
-> evaluation are not written yet.
+> **Status: work in progress.** The data model, the synthetic data generator, the
+> core calculations and the QC rules are in place. The Streamlit app and the
+> evaluation are not written yet, and the rule thresholds have not been tuned.
 
 A small tool for exploring and quality-checking data from a cell-viability
 assay run on 96-well plates. It is meant to help a scientist review a plate
@@ -17,9 +17,9 @@ generator in `assay_qc/generator.py` and do not come from any real experiment.
 
 ## Simulated experiment
 
-An ATP-based luminescence viability assay (CellTiter-Glo type: the signal is
-proportional to the amount of ATP, and so to the number of living cells) on a
-96-well plate:
+An ATP-based luminescence viability assay (CellTiter-Glo type) on a 96-well
+plate. The signal reflects the amount of ATP in the well. It is an indicator of
+viability, not a direct count of living cells.
 
 | Columns | Content |
 |---|---|
@@ -49,7 +49,9 @@ One row per well.
 
 Sample types:
 
-- `vehicle_control`: cells without compound (solvent only). Defines 100 % viability.
+- `vehicle_control`: cells with solvent (DMSO) only. Defines 100 % viability.
+  The model assumes the same final DMSO concentration in vehicle and compound
+  wells, so that differences in viability can be attributed to the compound.
 - `blank`: medium and reagent without cells. Defines the background signal.
 - `compound`: cells with a compound (test compound or the STS reference).
 
@@ -72,6 +74,23 @@ Z'          = 1 - 3 * (SD_vehicle + SD_blank) / |mean_vehicle - mean_blank|
   signal-to-background window of the plate, not the response to a cytotoxic
   control. It is estimated from a small number of wells, so it is uncertain.
   Any threshold used with it in this project is a configurable demo heuristic.
+
+## QC rules
+
+Each rule returns findings: which plate, well or group to look at, the observed
+value, the threshold, a short explanation and a suggested check. Rules never
+delete or change data.
+
+| Rule | Unit | Flags |
+|---|---|---|
+| `missing_signal` | well | a well without a signal value |
+| `control_outlier` | vehicle or blank well | robust z-score (median / MAD) above the threshold |
+| `replicate_cv` | replicate group | raw-signal CV above the threshold; not judged near the background level |
+| `z_prime` | plate | Z' below the threshold, or not computable |
+
+Thresholds are set in `QCConfig` in `assay_qc/rules.py`. They are configurable
+demonstration heuristics, not accepted standards, and the current defaults are
+placeholders until the evaluation is done.
 
 ## Synthetic data and ground truth
 
@@ -102,6 +121,7 @@ py -m venv .venv
 pip install -r requirements.txt
 pytest
 python -m scripts.generate_data --n-plates 6 --seed 20
+python -m scripts.run_qc data/example/example_plates.csv
 ```
 
 ## Repository layout
@@ -110,6 +130,7 @@ python -m scripts.generate_data --n-plates 6 --seed 20
 assay_qc/schema.py      column names, sample types, plate layout
 assay_qc/generator.py   synthetic plates and injected problems
 assay_qc/metrics.py     normalisation, Z', replicate summary
+assay_qc/rules.py       QC rules and the findings table
 scripts/                command-line helpers
 tests/                  tests of the calculations and the generator
 data/example/           small synthetic example with its truth file
