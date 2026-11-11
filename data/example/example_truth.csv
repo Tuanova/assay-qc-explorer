@@ -1,0 +1,12 @@
+plate_id,level,issue_type,well,compound,concentration_uM,detail
+P002,group,replicate_perturbation,H4,Compound_A,0.0457,signal x 0.66
+P002,well,control_outlier,B1,,,kill_control signal x 3.21
+P003,plate,poor_control_separation,,,,weak_kill
+P003,group,replicate_perturbation,B4,Compound_A,33.3333,signal x 0.75
+P003,group,replicate_perturbation,D7,Compound_B,3.7037,signal x 1.30
+P006,group,replicate_perturbation,B3,Compound_A,33.3333,signal x 0.47
+P006,group,replicate_perturbation,D9,Compound_C,3.7037,signal x 0.73
+P006,group,replicate_perturbation,B5,Compound_B,33.3333,signal x 0.65
+P006,well,missing_signal,E2,Compound_A,1.2346,
+P006,well,missing_signal,H6,Compound_B,0.0457,
+P006,well,control_outlier,D1,,,kill_control signal x 5.39
