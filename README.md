@@ -1,8 +1,8 @@
 # Assay QC Explorer
 
 > **Status: work in progress.** The data model, the synthetic data generator, the
-> core calculations and the QC rules are in place. The Streamlit app and the
-> evaluation are not written yet, and the rule thresholds have not been tuned.
+> core calculations, the QC rules and the Streamlit app are in place. The
+> evaluation is not written yet, and the rule thresholds have not been tuned.
 
 A small tool for exploring and quality-checking data from a cell-viability
 assay run on 96-well plates. It is meant to help a scientist review a plate
@@ -122,15 +122,21 @@ pip install -r requirements.txt
 pytest
 python -m scripts.generate_data --n-plates 6 --seed 20
 python -m scripts.run_qc data/example/example_plates.csv
+streamlit run app.py
 ```
+
+The last command opens the app in the browser with the built-in example.
+Uploaded files are processed in memory and are not saved.
 
 ## Repository layout
 
 ```
+app.py                  Streamlit application (display only)
 assay_qc/schema.py      column names, sample types, plate layout
 assay_qc/generator.py   synthetic plates and injected problems
 assay_qc/metrics.py     normalisation, Z', replicate summary
 assay_qc/rules.py       QC rules and the findings table
+assay_qc/validation.py  structure checks for uploaded files
 scripts/                command-line helpers
 tests/                  tests of the calculations and the generator
 data/example/           small synthetic example with its truth file
