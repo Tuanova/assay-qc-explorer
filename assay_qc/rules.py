@@ -23,8 +23,10 @@ FINDING_COLUMNS = [
 
 @dataclass(frozen=True)
 class QCConfig:
-    control_outlier_z: float = 3.5    # robust z-score above which a vehicle/blank well is flagged
-    replicate_cv_pct: float = 20.0    # replicate CV (%) above which a group is flagged
+    # The first two defaults are the medians of the thresholds chosen on tuning
+    # plates in scripts/run_evaluation.py. Z' keeps a conventional 0.5.
+    control_outlier_z: float = 7.0    # robust z-score above which a vehicle/blank well is flagged
+    replicate_cv_pct: float = 17.0    # replicate CV (%) above which a group is flagged
     cv_floor_multiple: float = 3.0    # CV is only judged if group mean >= this x blank mean
     z_prime_min: float = 0.5          # plates with Z' below this are flagged
 

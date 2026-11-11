@@ -1,8 +1,7 @@
 # Assay QC Explorer
 
-> **Status: work in progress.** The data model, the synthetic data generator, the
-> core calculations, the QC rules and the Streamlit app are in place. The
-> evaluation is not written yet, and the rule thresholds have not been tuned.
+> **Status: work in progress.** The app, the rules and the evaluation are in
+> place. A public demo link and a screenshot will be added.
 
 A small tool for exploring and quality-checking data from a cell-viability
 assay run on 96-well plates. It is meant to help a scientist review a plate
@@ -88,9 +87,10 @@ delete or change data.
 | `replicate_cv` | replicate group | raw-signal CV above the threshold; not judged near the background level |
 | `z_prime` | plate | Z' below the threshold, or not computable |
 
-Thresholds are set in `QCConfig` in `assay_qc/rules.py`. They are configurable
-demonstration heuristics, not accepted standards, and the current defaults are
-placeholders until the evaluation is done.
+Thresholds are set in `QCConfig` in `assay_qc/rules.py` and can be changed in
+the app. They are configurable demonstration heuristics, not accepted
+standards. The defaults for `replicate_cv` (17 %) and `control_outlier` (7.0)
+come from the evaluation below; Z' uses a conventional 0.5.
 
 ## Synthetic data and ground truth
 
@@ -111,6 +111,79 @@ The example in `data/example/` was generated with seed 20, chosen so that the
 six plates include clean plates and every issue type. It is a demonstration
 set, not an evaluation set.
 
+## Evaluation
+
+`python -m scripts.run_evaluation` measures how well the rules find the
+injected problems. Results are saved in `results/`.
+
+Method:
+
+- Thresholds are chosen on 40 synthetic **tuning** plates. Results are measured
+  on 40 separate **test** plates generated with different seeds. The test
+  plates are never used to choose anything.
+- The split is by whole plates, not by wells of one plate.
+- About 30 % of the plates have no injected problem.
+- The criterion was fixed in advance: among thresholds where at least 90 % of
+  the flags on the tuning plates are real, take the one that finds the most
+  problems.
+- The whole procedure is repeated with 5 seed pairs.
+- Each rule is counted in its own unit. The levels are not mixed.
+
+Results on the test plates, all 5 repeats added up:
+
+| Rule | Unit | Units | TP | FP | FN | Precision | Recall |
+|---|---|---|---|---|---|---|---|
+| `replicate_cv` | replicate group | 4800 | 232 | 18 | 53 | 0.93 | 0.81 |
+| `control_outlier` | vehicle or blank well | 4800 | 39 | 3 | 20 | 0.93 | 0.66 |
+| `z_prime` | plate | 200 | 20 | 5 | 1 | 0.80 | 0.95 |
+
+Spread between the 5 repeats:
+
+| Rule | Chosen threshold | Precision | Recall |
+|---|---|---|---|
+| `replicate_cv` | 16-17 % | 0.87-0.98 | 0.68-0.90 |
+| `control_outlier` | 5.5-10 | 0.86-1.00 | 0.42-0.93 |
+
+What the numbers say:
+
+- The replicate CV rule misses about one perturbed group in five. The misses
+  are mostly mild perturbations (signal x 0.75-0.80 or x 1.25) that stay inside
+  normal scatter, and groups on plates with a high background, where CV is
+  deliberately not judged.
+- The control outlier rule is unstable: the chosen threshold moves between 5.5
+  and 10 and recall between 0.42 and 0.93. With 8 blanks and 16 vehicle wells
+  per plate and only a handful of injected outliers per set, there is too
+  little data to tune it reliably.
+- Plate-level results rest on 21 affected plates in total, so they are counts,
+  not reliable rates.
+- Accuracy is not reported as the main number: only about 6 % of replicate
+  groups are perturbed, so never flagging anything would already be about 94 %
+  accurate.
+
+`missing_signal` is not part of this evaluation. An empty value is found by
+definition; unit tests cover it.
+
+## Limitations
+
+- All data are synthetic. The results show that the rules find these simulated
+  problems. They do not show performance on real assay data.
+- The generator and the rules come from the same project and share
+  assumptions (for example, noise proportional to the signal). That makes the
+  benchmark easier than reality.
+- A high replicate CV is not always an error; it also appears on the steep
+  part of a dose-response curve. The tool cannot tell these apart.
+- No curve fitting or IC50 estimation, and no detection of spatial effects
+  such as edge effects.
+- Thresholds would have to be set again for any real assay.
+
+## Possible next steps
+
+- Test on public real-world plate data.
+- Dose-response curve fitting with IC50 and its uncertainty.
+- A spatial (edge-effect) check.
+- An optional plain-language summary of the findings by an LLM, limited to the
+  values already computed in Python and referring to finding IDs.
+
 ## Run locally (Windows, PowerShell)
 
 ```powershell
@@ -122,6 +195,7 @@ pip install -r requirements.txt
 pytest
 python -m scripts.generate_data --n-plates 6 --seed 20
 python -m scripts.run_qc data/example/example_plates.csv
+python -m scripts.run_evaluation
 streamlit run app.py
 ```
 
@@ -137,9 +211,11 @@ assay_qc/generator.py   synthetic plates and injected problems
 assay_qc/metrics.py     normalisation, Z', replicate summary
 assay_qc/rules.py       QC rules and the findings table
 assay_qc/validation.py  structure checks for uploaded files
+assay_qc/evaluation.py  comparison of findings with the ground truth
 scripts/                command-line helpers
 tests/                  tests of the calculations and the generator
 data/example/           small synthetic example with its truth file
+results/                output of scripts/run_evaluation.py
 ```
 
 ## Use of AI

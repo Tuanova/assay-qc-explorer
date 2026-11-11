@@ -21,6 +21,7 @@ from assay_qc.schema import COMPOUND, N_COLS, ROWS
 from assay_qc.validation import clean_types, validate_data
 
 EXAMPLE_PATH = Path(__file__).parent / "data" / "example" / "example_plates.csv"
+RESULTS_DIR = Path(__file__).parent / "results"
 
 st.set_page_config(page_title="Assay QC Explorer", layout="wide")
 
@@ -135,7 +136,9 @@ findings = run_qc(data, config)
 # 'observed' and 'threshold' mix numbers and text ("missing"); show them as text.
 findings = findings.astype({"observed": str, "threshold": str})
 
-overview_tab, plate_tab, findings_tab, about_tab = st.tabs(["Overview", "Plate", "Findings", "About"])
+overview_tab, plate_tab, findings_tab, evaluation_tab, about_tab = st.tabs(
+    ["Overview", "Plate", "Findings", "Evaluation", "About"]
+)
 
 # --- Overview: one row per plate -------------------------------------------
 with overview_tab:
@@ -209,6 +212,68 @@ with findings_tab:
     st.dataframe(visible, hide_index=True, width="stretch")
     st.download_button("Download findings as CSV", visible.to_csv(index=False), "findings.csv", "text/csv")
     st.caption("A finding is a reason to look, not a verdict. Nothing is removed from the data.")
+
+# --- Evaluation: precomputed by scripts/run_evaluation.py ------------------
+with evaluation_tab:
+    st.subheader("How well do the rules find injected problems?")
+    st.write(
+        "These numbers come from `scripts/run_evaluation.py`, not from the file "
+        "loaded above. Thresholds were chosen on 40 synthetic *tuning* plates and "
+        "the results were measured on 40 separate *test* plates. This was repeated "
+        "with 5 different seed pairs."
+    )
+    if not (RESULTS_DIR / "evaluation_summary.csv").exists():
+        st.info("No results found. Run `python -m scripts.run_evaluation` first.")
+    else:
+        summary = pd.read_csv(RESULTS_DIR / "evaluation_summary.csv")
+        totals = summary.groupby("rule")[["units", "TP", "FP", "FN"]].sum()
+        totals["precision"] = totals["TP"] / (totals["TP"] + totals["FP"])
+        totals["recall"] = totals["TP"] / (totals["TP"] + totals["FN"])
+        st.markdown("**Test plates, all 5 repeats added up.** Each rule is counted in its own unit.")
+        st.dataframe(totals.round(2), width="stretch")
+        st.caption(
+            "Units: replicate groups for replicate_cv, vehicle/blank wells for control_outlier, "
+            "plates for z_prime. Precision = share of flags that were real. "
+            "Recall = share of real problems that were flagged."
+        )
+        with st.expander("Results of each repeat"):
+            st.dataframe(summary.round(2), hide_index=True, width="stretch")
+
+        st.markdown("**Replicate CV rule: effect of the threshold**")
+        curves = pd.read_csv(RESULTS_DIR / "cv_threshold_sweep.csv")
+        which = st.radio("Plates", ["test", "tuning"], horizontal=True)
+        curve = curves[curves["plates"] == which]
+        figure = go.Figure()
+        figure.add_trace(go.Scatter(x=curve["threshold"], y=curve["precision"], name="precision"))
+        figure.add_trace(go.Scatter(x=curve["threshold"], y=curve["recall"], name="recall"))
+        figure.add_vline(x=curves["chosen_threshold"].iloc[0], line_dash="dash",
+                         annotation_text="chosen on tuning plates")
+        figure.update_xaxes(title="Replicate CV threshold (%)")
+        figure.update_yaxes(title="Value", range=[0, 1.05])
+        figure.update_layout(height=380, margin={"l": 10, "r": 10, "t": 30, "b": 10})
+        st.plotly_chart(figure, width="stretch")
+        st.caption(
+            "A low threshold catches almost everything but most flags are false alarms. "
+            "A high threshold gives clean flags but misses the milder problems."
+        )
+
+        st.markdown("**Examples from the test plates (repeat 1)**")
+        st.dataframe(pd.read_csv(RESULTS_DIR / "cv_examples.csv"), hide_index=True, width="stretch")
+
+        nothing = summary.loc[summary["rule"] == "replicate_cv", "accuracy_if_nothing_flagged"].mean()
+        st.markdown(
+            f"""
+**Why not accuracy?** Only a few percent of replicate groups are perturbed, so a
+tool that never flags anything would already be {nothing:.0%} accurate. Accuracy
+is still a valid number, but here it hides exactly what matters: missed
+problems and false alarms. Precision and recall show them separately.
+
+**What these results do not show.** The data are synthetic and the problems
+were injected by the same project that wrote the rules, so this benchmark is
+easier than real data. It shows that the rules find these simulated problems;
+it does not show how they would perform on a real assay.
+"""
+        )
 
 # --- About ------------------------------------------------------------------
 with about_tab:

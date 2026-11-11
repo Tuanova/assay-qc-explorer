@@ -1,0 +1,11 @@
+kind,plate_id,compound,concentration_uM,cv_pct,detail
+missed,TEST005,Compound_A,11.1111,15.2,signal x 0.75
+missed,TEST007,Compound_A,0.0457,12.6,signal x 1.25
+missed,TEST010,STS,0.0046,12.0,signal x 0.80
+missed,TEST011,Compound_A,11.1111,13.9,signal x 0.67
+missed,TEST020,Compound_A,0.1372,14.3,signal x 0.77
+false alarm,TEST002,Compound_B,0.4115,17.0,
+false alarm,TEST012,Compound_B,100.0,18.5,
+false alarm,TEST023,Compound_A,1.2346,16.2,
+false alarm,TEST023,Compound_B,0.1372,17.4,
+false alarm,TEST025,Compound_A,33.3333,18.8,
